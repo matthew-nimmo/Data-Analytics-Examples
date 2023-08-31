@@ -32,6 +32,12 @@ vignettes/*.pdf
 *_cache/
 /cache/
 
+# targets directories and files
+_targets*
+
+# Quarto directories and files
+.quarto
+
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
