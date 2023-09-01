@@ -8,8 +8,8 @@ format: html-eval-false
 #| output: false
 library(targets)
 
-source("src/plot_bn.R")
-source("src/add_percent_label.R")
+source("src/exploratory-modelling/plot_bn.R")
+source("src/exploratory-modelling/add_percent_label.R")
 ```
 :::
 
@@ -59,6 +59,7 @@ df <- bind_rows(a_titanic_train,
                 a_titanic_test)
 df
 ```
+
 Build the data and then load `a_titanic` data frame into memory.
 
 When using `targets` within markdown documents we need to run the `tar_make` function to build the target object and `tar_load` to load the object into memory before the object can be used in the markdown. We do this after every `targets` code block.
@@ -163,6 +164,7 @@ df$survived <- factor(df$survived,
 
 df
 ```
+
 Build the `b_titanic` data frame and then load into memory.
 
 ```{r}

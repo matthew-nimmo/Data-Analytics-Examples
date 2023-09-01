@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Matthew Nimmo">
-<meta name="dcterms.date" content="2023-08-31">
+<meta name="dcterms.date" content="2023-09-01">
 
 <title>Exploratory Modelling with Bayesian Networks</title>
 <style>
@@ -3063,7 +3063,7 @@ vertical-align: -.125em;
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">August 31, 2023</p>
+      <p class="date">September 1, 2023</p>
     </div>
   </div>
   
@@ -3091,9 +3091,9 @@ vertical-align: -.125em;
 <p>The R packages used for this analysis include <code>tidyverse</code> <span class="citation" data-cites="R-tidyverse">(<a href="#ref-R-tidyverse" role="doc-biblioref">Wickham et al. 2019</a>)</span> (data preparation and visualization), <code>bnlearn</code> <span class="citation" data-cites="R-bnlearn">(<a href="#ref-R-bnlearn" role="doc-biblioref">Scutari 2010</a>)</span> (training Bayesian Networks), <code>ggdag</code> <span class="citation" data-cites="R-ggdag">(<a href="#ref-R-ggdag" role="doc-biblioref">Barrett 2023</a>)</span> (visualization of directed acyclic graphs), <code>ggthemes</code> <span class="citation" data-cites="R-ggthemes">(<a href="#ref-R-ggthemes" role="doc-biblioref">Arnold 2021</a>)</span> (visualization plot themes), <code>ggmosaic</code> <span class="citation" data-cites="R-ggmosaic">(<a href="#ref-R-ggmosaic" role="doc-biblioref">Jeppson, Hofmann, and Cook 2021</a>)</span> (mosaic plots of cross tabular data), <code>patchwork</code> <span class="citation" data-cites="R-patchwork">(<a href="#ref-R-patchwork" role="doc-biblioref">Pedersen 2022</a>)</span> (composition of multiple ggplots), <code>SEMgraph</code> <span class="citation" data-cites="R-SEMgraph">(<a href="#ref-R-SEMgraph" role="doc-biblioref">Grassi, Palluzzi, and Tarantino 2023</a>)</span> (visualization of Bayesian Networks), <code>Amelia</code> <span class="citation" data-cites="R-Amelia">(<a href="#ref-R-Amelia" role="doc-biblioref">Honaker, King, and Blackwell 2011</a>)</span> (missing value plot), <code>RANN</code> <span class="citation" data-cites="R-RANN">(<a href="#ref-R-RANN" role="doc-biblioref">Arya et al. 2019</a>)</span> (fast nearest neighbour search), <code>targets</code> <span class="citation" data-cites="R-targets">(<a href="#ref-R-targets" role="doc-biblioref">Landau 2021</a>)</span> (pipelines), <code>knitr</code> <span class="citation" data-cites="R-knitr">(<a href="#ref-R-knitr" role="doc-biblioref">Xie 2023</a>)</span> (markdown functionality), and <code>quarto</code> <span class="citation" data-cites="R-quarto">(<a href="#ref-R-quarto" role="doc-biblioref">Allaire 2022</a>)</span> (interface to the Quarto).</p>
 <p>The <code>targets</code> R package is used to manage the data analytics pipeline. For convenience, the R code used to generate target objects (data or visuals or models) is included in this Quarto markdown report. It is usually better to have all the R code in separate R files (stored in a ./src folder) and included in the <code>targets</code> pipeline and the markdown report only including calls to load the artefacts (including plots).</p>
 <p>Additional convenience functions were used for reducing code duplication when plotting Bayesian Networks (<code>plot_bn</code>) and for adding percentage labels to mosaic plots (<code>add_percent_label</code>).</p>
-<div class="cell" data-file="src/plot_bn.R">
+<div class="cell" data-file="src/exploratory-modelling/plot_bn.R">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">#| file: src/plot_bn.R</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">#| file: src/exploratory-modelling/plot_bn.R</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>plot_bn <span class="ot">&lt;-</span> <span class="cf">function</span>(m, <span class="at">dag.layout=</span><span class="st">&quot;gem&quot;</span>) {</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  g <span class="ot">&lt;-</span> <span class="fu">as.igraph</span>(m) <span class="sc">%&gt;%</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">graph2dagitty</span>() <span class="sc">%&gt;%</span></span>
@@ -3117,9 +3117,9 @@ vertical-align: -.125em;
 <span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>}</span>
 <span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div class="cell" data-file="src/add_percent_label.R">
+<div class="cell" data-file="src/exploratory-modelling/add_percent_label.R">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">#| file: src/add_percent_label.R</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">#| file: src/exploratory-modelling/add_percent_label.R</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>add_percent_label <span class="ot">&lt;-</span> <span class="cf">function</span>(p) {</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  pd <span class="ot">&lt;-</span> <span class="fu">ggplot_build</span>(p)<span class="sc">$</span>data <span class="sc">%&gt;%</span></span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>() <span class="sc">%&gt;%</span></span>

@@ -14,8 +14,8 @@ library(patchwork)
 library(SEMgraph)
 library(targets)
 
-source("src/plot_bn.R")
-source("src/add_percent_label.R")
+source("src/exploratory-modelling/plot_bn.R")
+source("src/exploratory-modelling/add_percent_label.R")
 ```
 :::
 

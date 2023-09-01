@@ -47,11 +47,11 @@ The `targets` R package is used to manage the data analytics pipeline. For conve
 Additional convenience functions were used for reducing code duplication when plotting Bayesian Networks (`plot_bn`) and for adding percentage labels to mosaic plots (`add_percent_label`).
 
 ```{r}
-#| file: src/plot_bn.R
+#| file: src/exploratory-modelling/plot_bn.R
 ```
 
 ```{r}
-#| file: src/add_percent_label.R
+#| file: src/exploratory-modelling/add_percent_label.R
 ```
 
 Set the `targets` package options. The required packages used by the functions in the pipeline are `dplyr`, `readr`, and `bnlearn`
