@@ -1,0 +1,116 @@
+---
+format: html-eval-false
+---
+
+::: {.content-visible when-format="html-eval-false"}
+```{r}
+#| echo: false
+#| output: false
+library(targets)
+
+source("src/exploratory-analysis/cumprob.R")
+source("src/exploratory-analysis/plot_missing.R")
+source("src/exploratory-analysis/panel.R")
+source("src/exploratory-analysis/my_pal.R")
+
+tar_load(a_jura)
+```
+:::
+
+# Exploratory visual analysis
+
+```{r}
+#| fig.width: 6
+#| fig.height: 3
+#| label: fig-miss
+#| fig-cap: "Distribution of missing values."
+plot_missing(a_jura)
+```
+
+```{r}
+#| fig.width: 9
+#| fig.height: 9
+#| label: fig-plan
+#| fig-cap: "Location of missing samples."
+par(mfrow=c(3,3))
+for (i in setdiff(names(a_jura), c("Xloc","Yloc","long","lat"))) {
+  plot(a_jura$Xloc[!is.na(a_jura[[i]])],
+       a_jura$Yloc[!is.na(a_jura[[i]])],
+       frame.plot=FALSE, asp=1,
+       pch=1, cex=1, col="black",
+       main = i, xlab="Xloc", ylab="Yloc")
+  points(a_jura$Xloc[is.na(a_jura[[i]])],
+         a_jura$Yloc[is.na(a_jura[[i]])],
+         pch=16, cex=2, col="red")
+}
+```
+
+The cumulative probability plots of the sample assay data within the Jura copper deposit are provided in (Figure \@ref(fig:ah-box)).
+
+The cumulative probability plots of the sample assay data within the Jura copper deposit are provided in (Figure \@ref(fig:ah-cumprob)).
+
+```{r}
+#| fig.width: 9
+#| fig.height: 5
+#| label: fig-cumprob
+#| fig-cap: "Cumulative probability plots of sample assay data."
+par(mfrow=c(2,4))
+for (i in c("Cd","Co","Cr","Cu","Ni","Pb","Zn")) {
+  cumprob(a_jura[[i]],
+          main="", xlab=i, pch=16, cex=0.9)
+}
+```
+
+```{r}
+#| fig.width: 9
+#| fig.height: 5
+#| label: fig-cumprob
+#| fig-cap: "Cumulative probability plots of sample assay data."
+par(mfrow=c(2,4))
+for (i in c("Cd","Co","Cr","Cu","Ni","Pb","Zn")) {
+  cumprob(as.formula(paste(i, "~ Rock")), data=a_jura,
+          main="", xlab=i, pch=16, cex=0.9)
+}
+```
+
+```{r}
+#| fig.width: 9
+#| fig.height: 5
+#| label: fig-box
+#| fig-cap: "Boxplots of assays by rock."
+par(mfrow=c(2,4), mar=c(5.1,6.1,1.1,1.1))
+
+for (i in c("Cd","Co","Cr","Cu","Ni","Pb","Zn")) {
+  boxplot(as.formula(paste(i, "~ Rock")), data=a_jura,
+          horizontal=TRUE, pch=16, cex=0.9, frame.plot=FALSE, las=2,
+          main="", ylab="", xlab=i)
+}
+```
+
+```{r}
+#| fig.width: 9
+#| fig.height: 9
+#| label: fig-pairs
+#| fig-cap: "Pairs plot of assays by."
+pairs(a_jura[, c("Cd","Co","Cr","Cu","Ni","Pb","Zn")],
+      lower.panel = panel.scatter,
+      diag.panel = panel.hist,
+      upper.panel = panel.cor)
+```
+
+```{r}
+#| fig.width: 9
+#| fig.height: 5
+#| label: fig-plan
+#| fig-cap: "Location of missing samples."
+par(mfrow=c(2,4), mar=c(4.1,4.1,2,2))
+for (i in c("Cd","Co","Cr","Cu","Ni","Pb","Zn")) {
+  cols <- arules::discretize(a_jura[[i]], breaks=12, method="cluster")
+  cols <- my.pal(12)[cols]
+  plot(a_jura$Xloc,
+       a_jura$Yloc,
+       frame.plot=FALSE, asp=1,
+       pch=16, cex=1.2, col=cols,
+       main = i, xlab="Xloc", ylab="Yloc")
+}
+```

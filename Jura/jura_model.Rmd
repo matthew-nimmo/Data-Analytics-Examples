@@ -1,0 +1,262 @@
+
+```{r}
+library(gstat)
+library(viridis)
+library(ggplot2)
+library(ggthemes)
+library(cowplot)
+library(raster)
+library(sp)
+source("ppmt.R")
+```
+
+# Estimation parameters
+
+```{r}
+flds_rock <- c("SEQ","KIM","QUA","ARG","POR")
+flds_est <- c("cd_ppm","co_ppm","cr_ppm","cu_pct","ni_ppm","pb_ppm","zn_ppm")
+top_cuts <- data.frame(Variable=flds_est,
+                       Cut=c(3.8,15.2,59.1,16.5,35.2,144,146))
+est_vario <- data.frame(
+  cd_ppm = c(0.1, 0.6, 0.5, 0.5, 0.5, 0.3, 1.5, 1.5, 1.5, 140),
+  co_ppm = c(0.1, 0.6, 0.5, 0.5, 0.5, 0.3, 1.5, 1.5, 1.5, 40),
+  cr_ppm = c(0.1, 0.6, 0.5, 0.5, 0.5, 0.3, 1.5, 1.5, 1.5, 140),
+  cu_pct = c(0.1, 0.6, 0.5, 0.5, 0.5, 0.3, 1.5, 1.5, 1.5, 40),
+  ni_ppm = c(0.1, 0.6, 0.5, 0.5, 0.5, 0.3, 1.5, 1.5, 1.5, 40),
+  pb_ppm = c(0.1, 0.6, 0.5, 0.5, 0.5, 0.3, 1.5, 1.5, 1.5, 40),
+  zn_ppm = c(0.1, 0.6, 0.5, 0.5, 0.5, 0.3, 1.5, 1.5, 1.5, 140)
+)
+```
+
+# Boundaries and geological domains
+
+```{r echo=FALSE}
+jura_bnd <- rgdal::readOGR("bound.shp")
+```
+
+# Sample data
+
+```{r}
+jura_samps <- read.csv("jura_modified.csv")
+jura_samps <- dplyr::select(jura_samps, X=Xloc, Y=Yloc, rock=Rock,
+                            cd_ppm=Cd, co_ppm=Co, cr_ppm=Cr, cu_pct=Cu,
+                            ni_ppm=Ni, pb_ppm=Pb, zn_ppm=Zn)
+jura_samps$SEQ <- ifelse(jura_samps$rock == "SEQ", 1, 0)
+jura_samps$KIM <- ifelse(jura_samps$rock == "KIM", 1, 0)
+jura_samps$QUA <- ifelse(jura_samps$rock == "QUA", 1, 0)
+jura_samps$ARG <- ifelse(jura_samps$rock == "ARG", 1, 0)
+jura_samps$POR <- ifelse(jura_samps$rock == "POR", 1, 0)
+```
+
+```{r fig.width=4, fig.height=4}
+z <- factor(jura_samps$rock)
+plot(jura_samps$X, jura_samps$Y, pch=16, cex=0.8, asp=1,
+     frame.plot=FALSE, col=unclass(z),
+     xlab="UTM X (km)", ylab="UTM Y (km)")
+lines(jura_bnd, col="red", lwd=2)
+legend("topleft", legend=levels(z), col=1:nlevels(z), pch=16, cex=0.6)
+rm(z)
+```
+
+```{r}
+est_samps <- jura_samps
+est_samps$rowid <- 1:nrow(est_samps)
+fldsy <- flds_est
+fldsx <- setdiff(names(est_samps), fldsy)
+indx <- complete.cases(est_samps[, fldsy])
+est_samps <- est_samps[indx, ]
+
+flds <- top_cuts$Variable
+cutval <- top_cuts$Cut
+names(cutval) <- flds
+for (i in flds) {
+  est_samps[[i]] <- ifelse(est_samps[[i]] > cutval[[i]], cutval[[i]], est_samps[[i]])
+}
+
+set.seed(3)
+est_ppmt <- ppmt(est_samps[, fldsy])
+est_ppmt$Y <- cbind(est_samps[, fldsx], est_ppmt$Y)
+```
+
+# Grid
+
+```{r}
+xinc <- 0.25
+yinc <- 0.25
+xr <- range(jura_samps$Xloc)
+xr <- c(xinc*floor(xr[1]/xinc), xinc*ceiling(xr[2]/xinc))
+yr <- range(jura_samps$Xloc)
+yr <- c(yinc*floor(yr[1]/yinc), yinc*ceiling(yr[2]/yinc))
+gr <- GridTopology(cellcentre.offset=c(xr[1],yr[1]), cellsize=c(xinc,yinc),
+                   cells.dim=c(diff(xr)/xinc, diff(yr)/yinc)+1)
+gr <- SpatialGrid(gr)
+jura_grid <- raster(gr)
+```
+
+```{r}
+jura_grid <- raster(ncols=54, nrows=66, xmn=0, xmx=5.4, ymn=0, ymx=6.4)
+
+x <- est_samps
+coordinates(x) <- ~ X + Y
+z <- as.data.frame(coordinates(jura_grid))
+names(z) <- c("X","Y")
+coordinates(z) <- ~ X + Y
+
+set.seed(9)
+jura_ind <- lapply(flds_rock, function(i) {
+  z <- krige(as.formula(paste(i, "~ 1")), x, newdata=z, nsim=0,
+             model=vgm(0.3, "Sph", 1.5, add.to=vgm(0.6, "Sph", 0.5, 0.1)),
+             maxdist=3, nmin=1, nmax=10, omax=3)
+  z@data$var1.pred[is.na(z@data$var1.pred)] <- 0
+  z@data$var1.pred <- pmax(0, pmin(1, z@data$var1.pred))
+  raster(SpatialPixelsDataFrame(z@coords, z@data))
+})
+jura_ind <- brick(jura_ind)
+names(jura_ind) <- flds_rock
+jura_ind <- rasterize(jura_bnd, jura_ind, mask=TRUE)
+```
+
+```{r fig.width=9, fig.height=6}
+par(oma=c(1,1,1,1))
+plot(jura_ind, asp=1, col=viridis(20),
+     addfun=function() {
+       box(col="white")
+       lines(jura_bnd, col="red", lwd=2)
+})
+```
+
+```{r}
+flds <- names(jura_ind)
+jura_rock <- jura_ind
+jura_rock <- which.max(jura_rock)
+jura_rock <- ratify(jura_rock)
+levels(jura_rock) <- list(data.frame(ID=1:length(flds), rock=flds))
+```
+
+```{r fig.width=4, fig.height=4}
+z <- factor(values(jura_rock))
+x <- data.frame(rock=z, coordinates(jura_rock))
+flds <- levels(jura_rock)[[1]]$rock
+
+ggplot() +
+  geom_raster(data=x, aes(x=x, y=y, fill=rock), alpha=1) +
+  scale_fill_viridis(na.value="white", option="magma",
+                     discrete=TRUE, labels=flds) +
+  xlab("UTM X (km)") + ylab("UTM Y (km)") +
+  coord_equal() +
+  theme_tufte() +
+  theme(
+    legend.position="right",
+    legend.key.width = unit(3, "mm"),
+    legend.key.height = unit(3, "mm"),
+    legend.text = element_text(size=8)
+  )
+rm(x, z, flds)
+```
+
+# Estimate
+
+```{r}
+# Inverse Distance
+df <- est_ppmt$Y
+z <- sapply(flds_est, function(i) {
+  x <- df[, c("X","Y",i)]
+  x <- x[complete.cases(x), ]
+  z <- as.data.frame(coordinates(jura_rock))
+  names(z) <- c("X","Y")
+
+  y <- idw(as.formula(paste(i, " ~ 1")), ~ X + Y, data=x, newdata=z,
+           idp=2, maxdist=6, nmin=1, nmax=10, omax=5)
+  y$var1.pred
+})
+z <- as.data.frame(z)
+z <- as.data.frame(ppmt_inv(z, est_ppmt))
+names(z) <- flds_est
+z <- SpatialPixelsDataFrame(coordinates(jura_rock), z)
+z <- brick(z)
+
+# Aggregate to parent cell.
+x <- raster::aggregate(z, fact=3)
+
+# Add back to sub-cell.
+x <- raster::extract(x, coordinates(jura_rock))
+x <- as.data.frame(x)
+x <- SpatialPixelsDataFrame(coordinates(jura_rock), x)
+x <- brick(x)
+x <- mask(x, jura_rock)
+x$rock <- jura_rock
+
+jura_idw <- x
+rm(x, z)
+```
+
+```{r}
+x <- rbind(est_vario, round(sapply(est_vario, function(x) x[9] / x[8]), 2))
+x <- t(x)
+vario <- lapply(flds_est, function(i) {
+  vgm(x[i,6], "Sph", x[i,8], anis=c(x[i,10], x[i,11]),
+      add.to=vgm(x[i,2], "Sph", x[i,4], x[i,1], anis=c(x[i,10], x[i,11])))
+})
+names(vario) <- flds_est
+rm(x)
+```
+
+```{r}
+# Simple Kriging
+df <- est_ppmt$Y
+z <- sapply(flds_est, function(i) {
+  x <- df[, c("X","Y",i)]
+  x <- x[complete.cases(x), ]
+  coordinates(x) <- ~ X + Y
+  z <- as.data.frame(coordinates(jura_rock))
+  names(z) <- c("X","Y")
+  coordinates(z) <- ~ X + Y
+
+  y <- krige(as.formula(paste(i, " ~ 1")), x, z, beta=0,
+             model=vario[[i]], maxdist=6, nmin=1, nmax=10, omax=5)
+  y$var1.pred
+})
+z <- as.data.frame(z)
+z <- as.data.frame(ppmt_inv(z, est_ppmt))
+names(z) <- flds_est
+z <- SpatialPixelsDataFrame(coordinates(jura_rock), z)
+z <- brick(z)
+
+# Aggregate to parent cell.
+x <- raster::aggregate(z, fact=3)
+
+# Add back to sub-cell.
+x <- raster::extract(x, coordinates(jura_rock))
+x <- as.data.frame(x)
+x <- SpatialPixelsDataFrame(coordinates(jura_rock), x)
+x <- brick(x)
+x <- mask(x, jura_rock)
+x$rock <- jura_rock
+
+jura_sk <- x
+rm(x, z)
+```
+
+```{r fig.width=9, fig.height=9}
+par(oma=c(1,1,1,1))
+x <- jura_sk[[flds_est]]
+plot(x, asp=1, col=inferno(20),
+     addfun=function() {
+       points(jura_samps$X, jura_samps$Y, pch="+")
+       box(col="white")
+})
+```
+
+# Export model
+
+```{r}
+# Export the model
+x <- jura_sk
+x <- dropLayer(x, 1:3)
+names(x) <- c("Cu","Ni","Pb","Zn","Rock")
+writeRaster(x, "jura_model_sk.nc", format="CDF", overwrite=TRUE)
+
+x <- as.data.frame(rasterToPoints(x))
+x$Rock <- (levels(jura_sk$rock)[[1]]$rock)[x$Rock]
+write.csv(x, "jura_model_sk.csv", na="", row.names=FALSE)
+```

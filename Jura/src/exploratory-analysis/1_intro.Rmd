@@ -1,0 +1,60 @@
+---
+format: html-eval-false
+---
+
+# Introduction
+
+## Tools and techniques
+
+The open source R environment for statistical computing was used [@R-base] along with the RStudio Integrated Development Environment and Quarto.
+
+The R packages used for this analysis include `tidyverse` [@R-tidyverse] (data preparation and visualization), `bnlearn` [@R-bnlearn] (training Bayesian Networks), `ggdag` [@R-ggdag] (visualization of directed acyclic graphs), `ggthemes` [@R-ggthemes] (visualization plot themes), `ggmosaic` [@R-ggmosaic] (mosaic plots of cross tabular data), `patchwork` [@R-patchwork] (composition of multiple ggplots), `SEMgraph` [@R-SEMgraph] (visualization of Bayesian Networks), `Amelia` [@R-Amelia] (missing value plot), `RANN` [@R-RANN] (fast nearest neighbour search), `targets` [@R-targets] (pipelines), `knitr` [@R-knitr] (markdown functionality), and `quarto` [@R-quarto] (interface to the Quarto).
+
+```{r}
+#| label: setup
+#| echo: false
+#| output: false
+
+library(tidyverse)
+library(rgdal)
+library(sp)
+library(gstat)
+library(targets)
+
+source("src/exploratory-analysis/sum_stats.R")
+source("src/exploratory-analysis/digits.R")
+source("src/exploratory-analysis/cumprob.R")
+source("src/exploratory-analysis/plot_missing.R")
+source("src/exploratory-analysis/panel.R")
+source("src/exploratory-analysis/my_pal.R")
+```
+
+## Custom functions
+
+## Workflow pipeline
+
+The `targets` R package is used to manage the data analytics pipeline. For convenience, the R code used to generate target objects (data or visuals or models) is included in this Quarto markdown report. It is usually better to have all the R code in separate R files (stored in a ./src folder) and included in the `targets` pipeline and the markdown report only including calls to load the artefacts (including plots).
+
+Set the `targets` package options. The required packages used by the functions in the pipeline are `dplyr`, `readr`, and `bnlearn`
+
+```{targets globals}
+#| label: globals
+#| tar_globals: true
+#| tar_interactive: false
+#| echo: false
+#| output: false
+
+options(tidyverse.quiet = TRUE)
+tar_option_set(packages = c("tidyverse","sp","rgdal","gstat","bnlearn","mclust"),
+               error = "null")
+```
+
+To perform a clean build use the functions `tar_unscript` and `tar_prune`.
+
+```{r}
+#| eval: false
+
+# Clean build.
+tar_unscript()
+tar_prune()
+```

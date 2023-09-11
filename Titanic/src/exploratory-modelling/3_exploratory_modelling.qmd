@@ -513,7 +513,7 @@ p1 + p2 + plot_layout(ncol=2)
 
 ## Adjust initial Bayesian Network using edge constraints (white and black lists)
 
-Links between variables in Bayesian Networks can be constrained using whitelists and blacklists. Whitelists define the links that must occur in the trained network. Blacklists define links that cannot be included in the trained network. A whitelist is used to ensure that the link between title and age exists in the trained Bayesian Network.
+Links between variables in Bayesian Networks can be constrained using whitelists and blacklists. Whitelists define the links that must occur in the trained network. Blacklists define links that cannot be included in the trained network. A whitelist is used to ensure that the link between title and age exists in the trained Bayesian Network. A blacklist is used to enforce edges connecting with survived are directed toward survived.
 
 ```{targets titanic_bn2}
 #| label: titanic_bn2
@@ -526,14 +526,15 @@ flds <- c("survived","title","sex","age","sibsp","parch",
 x <- b_titanic[, flds]
 wl <- data.frame(from = "title",
                  to = "age")
+bl <- bnlearn::tiers2blacklist(list(flds[-1], "survived"))
 bn <- structural.em(x,
-                    maximize.args = list(whitelist=wl, blacklist=NULL),
+                    maximize.args = list(whitelist=wl, blacklist=bl),
                     return.all = TRUE,
                     impute = "parents")
 bn
 ```
 
-Build the Bayesian Network `titanic_bn2` with link constraints (whitelist) and load into memory.
+Build the Bayesian Network `titanic_bn2` with link constraints (whitelist and blacklist) and load into memory.
 
 ```{r}
 #| output: false
@@ -545,7 +546,7 @@ if (length(tar_outdated()) > 0) {
 tar_load(titanic_bn2)
 ```
 
-The trained Bayesian Network with the constraint that the variables title and age are linked is shown in @fig-bn2. The consequence of forcing the connection results in the variable age no longer being connected directly to survived. But age is indirectly connected to survived via sibsp and pclass.
+The trained Bayesian Network with the constraint that the variables title and age are linked is shown in @fig-bn2. The consequence of forcing the connection results in the variable age no longer being connected directly to survived. But age is indirectly connected to survived via sibsp and pclass. The only direct effect on survived is sex.
 
 ```{r}
 #| fig.width: 5
@@ -873,8 +874,9 @@ flds <- c("survived","title","sex","age","sibsp","parch",
 x <- c_titanic[, flds]
 wl <- data.frame(from = c("title","deck","embarked"),
                  to = c("age", rep("fare",2)))
+bl <- bnlearn::tiers2blacklist(list(flds[-1], "survived"))
 bn <- structural.em(x,
-                    maximize.args = list(whitelist=wl, blacklist=NULL),
+                    maximize.args = list(whitelist=wl, blacklist=bl),
                     return.all = TRUE,
                     impute = "bayes-lw")
 bn
@@ -899,6 +901,7 @@ The Bayesian Network trained on the processed Titanic data `c_titanic` is illust
 #| fig.height: 4
 #| label: fig-bn4
 #| fig-cap: "Bayesian Network (BN4)."
+
 plot_bn(titanic_bn3$fitted, "dh")
 ```
 

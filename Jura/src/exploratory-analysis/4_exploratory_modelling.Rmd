@@ -1,0 +1,467 @@
+---
+format: html-eval-false
+---
+
+::: {.content-visible when-format="html-eval-false"}
+```{r}
+#| echo: false
+#| output: false
+library(targets)
+library(tidyverse)
+library(ggdag)
+library(ggthemes)
+library(SEMgraph)
+
+source("src/exploratory-analysis/plot_bn.R")
+```
+:::
+
+# Exploratory modelling
+
+## Bayesian Network
+
+To gain insight into the missing value mechanism, additional indicator variables were added to the data identifying missing values.
+
+```{targets jura_bn0}
+#| label: jura_bn0
+#| tar_simple: true
+#| tar_interactive: false
+#| output: false
+
+flds <- c("Landuse","Rock","Cd","Co","Cr","Cu","Ni","Pb","Zn")
+x <- a_jura[, flds]
+x[] <- ifelse(is.na(x), 1, 0)
+names(x) <- paste("missing", names(x), sep=".")
+x <- cbind(a_jura[, flds], x)
+bn <- structural.em(x,
+                    maximize.args = list(whitelist=NULL, blacklist=NULL),
+                    return.all = TRUE,
+                    impute = "parents")
+
+bn
+```
+
+Build the initial Bayesian Network `jura_bn0` and load into memory.
+
+```{r}
+#| output: false
+#| message: false
+#| error: false
+if (length(tar_outdated()) > 0) {
+  tar_make()
+}
+tar_load(jura_bn0)
+```
+
+From the Bayesian Network trained with missing value variables included, the missing values for deck, age, and fare are missing at random (@fig-bn0). Missing values for deck are dependent on `r knitr::combine_words(bnlearn::parents(jura_bn0$fitted, "missing.deck"))`. Missing values for age are dependent on `r knitr::combine_words(bnlearn::parents(jura_bn0$fitted, "missing.age"))`. And missing values for fare are dependent on `r knitr::combine_words(bnlearn::parents(jura_bn0$fitted, "missing.fare"))`.
+
+```{r}
+#| fig.width: 6
+#| fig.height: 6
+#| label: fig-bn0
+#| fig-cap: "Initial Bayesian Network with missing value variables."
+plot_bn(jura_bn0$fitted, dag.layout="dh")
+```
+
+```{targets jura_bn1}
+#| label: jura_bn1
+#| tar_simple: true
+#| tar_interactive: false
+#| output: false
+
+flds <- c("Landuse","Rock","Cd","Co","Cr","Cu","Ni","Pb","Zn")
+x <- a_jura[, flds]
+bn <- structural.em(x,
+                    maximize.args = list(whitelist=NULL, blacklist=NULL),
+                    return.all = TRUE,
+                    impute = "parents")
+
+bn
+```
+
+Build the Bayesian Network `jura_bn1` without the missing value variables and load into memory.
+
+```{r}
+#| output: false
+#| message: false
+#| error: false
+if (length(tar_outdated()) > 0) {
+  tar_make()
+}
+tar_load(jura_bn1)
+```
+
+```{r}
+#| fig.width: 5
+#| fig.height: 4
+#| label: fig-bn1
+#| fig-cap: "Initial Bayesian Network."
+plot_bn(jura_bn1$fitted, dag.layout="kk")
+```
+
+```{r}
+#| fig.width: 9
+#| fig.height: 3
+#| label: fig-box1
+#| fig-cap: "Box plot of Cu by Landuse (Jura dataset)."
+
+par(mfcol=c(1,3), mar=c(5.1,4.1,1.1,1.1), oma=c(0,3,0,0))
+for (i in c("Cu","Pb","Cd")) {
+  boxplot(as.formula(paste(i, "~ Landuse")),
+          data = a_jura,
+          horizontal = TRUE,
+          las = 2,
+          pch = 16,
+          ylab = "")
+}
+mtext("Landuse", 2, line=1.5, outer=TRUE)
+```
+
+```{r}
+#| fig.width: 9
+#| fig.height: 3
+#| label: fig-box1
+#| fig-cap: "Box plot of Cu by Landuse (Jura dataset)."
+
+par(mfcol=c(1,3), mar=c(5.1,5.5,1.1,1.1), oma=c(0,3,0,0))
+for (i in c("Cr","Co","Ni")) {
+  boxplot(as.formula(paste(i, "~ Rock")),
+          data = a_jura,
+          horizontal = TRUE,
+          las = 2,
+          pch = 16,
+          ylab = "")
+}
+mtext("Rock", 2, line=1.5, outer=TRUE)
+```
+
+## Dimension reduction
+
+The dimension reduction algorithm UMAP was used to visualize the coverage of metallurgy test work sampling, in multivariate space, compared with the geology assay data. Prior to performing UMAP dimension reduction on the geology assay data, the data was subset by selecting only those rows where Zn % is greater than 2% Zn and by selecting the assay variables (Al_ppm, C_Tot_pct, Ca_pct, Fe_pct, Mg_pct, Mn_pct, Pb_pct, S_pct, and Zn_pct) that are found in the process plant data. Only complete observations were used.
+
+```{targets a_jura_umap}
+#| label: a_jura_umap
+#| tar_simple: true
+#| tar_interactive: false
+#| output: false
+
+flds <- c("Cd","Co","Cr","Cu","Ni","Pb","Zn")
+
+x <- a_jura[, flds]
+if (any(is.na(x))) {
+  set.seed(2022)
+  x <- mice::mice(x, m=1, maxit=15, seed=1, print=FALSE, method="cart")
+  x <- mice::complete(x)
+}
+
+set.seed(21)
+if (nrow(x) > 5000) {
+  i <- clhs::clhs(x, 5000, simple=TRUE)
+  x <- x[i, ]
+}
+
+x <- scale(x)
+um <- umap::umap(x, n_components=2, n_neighbors=30, min_dist=1e-3)
+um
+```
+
+```{r}
+#| output: false
+#| message: false
+#| error: false
+if (length(tar_outdated()) > 0) {
+  tar_make()
+}
+tar_load(a_jura_umap)
+```
+
+```{r}
+#| fig.width: 5
+#| fig.height: 5
+#| label: fig-box1
+#| fig-cap: "Box plot of Cu by Landuse (Jura dataset)."
+
+a_jura_umap$layout |>
+  as.data.frame() |>
+  ggplot(mapping=aes(x=V1, y=V2, color=a_jura$Rock)) +
+  geom_point() +
+  scale_colour_manual(name = "Rock",
+                      values = c("Argovian"="grey90",
+                                 "Kimmeridgian"="grey50",
+                                 "Sequanian"="blue",
+                                 "Portlandian"="orange",
+                                 "Quaternary"="red")) +
+  labs(x=NULL, y=NULL) +
+  coord_fixed() +
+  scale_x_continuous(breaks=NULL) +
+  scale_y_continuous(breaks=NULL) +
+  theme_tufte()
+
+a_jura_umap$layout |>
+  as.data.frame() |>
+  ggplot(mapping=aes(x=V1, y=V2, color=a_jura$Landuse)) +
+  geom_point() +
+  scale_colour_manual(name = "Landuse",
+                      values = c("Forest"="grey90",
+                                 "Pasture"="grey50",
+                                 "Meadow"="blue",
+                                 "Tillage"="orange")) +
+  labs(x=NULL, y=NULL) +
+  coord_fixed() +
+  scale_x_continuous(breaks=NULL) +
+  scale_y_continuous(breaks=NULL) +
+  theme_tufte()
+```
+
+## Numeric
+
+Variable clustering (Figure \@ref(fig:eda-lat-1)) was performed on the geology data to identify potential geological constructs that may explain the data. Results show that, as expected, the cuoreclass is associated with cu_pct and the znoreclass is associated with zn_pct. Interestingly, lith1 is correlated with calcium (ca_pct), barium (ba_pct) and strontium (sr_pct). Overall, there are three broad clusters in the variables. The first group contains Lead (pb_pct), which is strongly associated with silver (ag_ppm), and grouped with lithology (lith1), barium (ba_ppm), strontium (sr_ppm), calcium (ca_pct), total carbon (c_tot_pct), phosphorus (p_ppm), and manganese (mn_pct). The second group contains zinc (zn_pct), which is strongly associated with zinc ore class (znoreclass) and total sulfur (s_tot_pct), and grouped with nickel (ni_pct), iron (fe_pct), scandium (sc_ppm), chromium (cr_ppm), potassium (k_pct), vanadium (v_ppm), aluminium (al_pct), and titanium (ti_pct). The third broad variable group contains copper (cu_pct), which is strongly associated with copper ore class (cuoreclass), and grouped with arsenic (as_ppm), cobalt (co_ppm), molybdenum (mo_pct), magnesium (mg_pct), and sodium (na_pct). The three broad variable groups could be interpreted to represent lead mineralization (group 1), zinc mineralization (group 2), and copper mineralization (group 3).
+
+```{targets a_jura_hclust}
+#| label: a_jura_hclust
+#| tar_simple: true
+#| tar_interactive: false
+#| output: false
+
+flds <- names(a_jura)
+flds1 <- flds[sapply(a_jura[, flds], is.numeric)]
+x1 <- a_jura[, flds1]
+if (length(flds1) != length(flds)) {
+  flds2 <- setdiff(flds, flds1)
+  x2 <- a_jura[, flds2]
+} else {
+  x2 <- NULL
+}
+ClustOfVar::hclustvar(X.quanti=x1, X.quali=x2, init=NULL)
+```
+
+```{r}
+#| output: false
+#| message: false
+#| error: false
+if (length(tar_outdated()) > 0) {
+  tar_make()
+}
+tar_load(a_jura_hclust)
+```
+
+```{r}
+#| fig.width: 6
+#| fig.height: 4
+#| label: fig-hclust
+#| fig-cap: "Graph of hierarchical grouping of the geology variables."
+
+par(mar=c(1,4,1,1))
+plot(tar_read(a_jura_hclust), main="Jura")
+```
+
+Limited exploratory factor analysis was performed on the independent geological variables. The analysis was conducted to assess whether there are any underlying latent numeric variables that could explain the correlations in the geology assay data. The intent of the analysis is similar to clustering of variables but is limited to only numeric variables. Results of the factor analysis can be compared with the variable clustering results.
+
+Factor analysis was performed on the geology and balanced mill data using the oblique (oblimin) rotation and the minimal residual (minres) factoring method. It was assumed that the latent numeric variables are correlated with each other and that there are a smaller number of latent variables than actual variables. Parallel analysis was performed to determine the number of latent variables.
+
+Eight latent variables were determined to be appropriate for the factor analysis for all variables, four for the trace assays, three for the major assays (gangue), and four for the metals. The major factor loadings for the geology assay data are illustrated in Figure \@ref(fig:eda-lat-3).
+
+Parallel analysis suggested two latent variables for the flotation feed variables (bala_01), for the lead concentrate (bala_12), and the zinc concentrate (bala_24). The major factor loadings for the mill balanced data are illustrated in Figure \@ref(fig:eda-lat-4).
+
+```{r}
+#| eval: false
+#| fig.width: 6
+#| fig.height: 4
+#| label: fig-hclust
+#| fig-cap: "Graph of hierarchical grouping of the geology variables."
+
+# Check number of latent variables.
+psych::fa.parallel(a_jura[, c("Cd","Co","Cr","Cu","Ni","Pb","Zn")], fm="minres", fa="fa")
+```
+
+```{targets a_jura_fa}
+#| label: a_jura_fa
+#| tar_simple: true
+#| tar_interactive: false
+#| output: false
+
+x <- a_jura[,c("Cd","Co","Cr","Cu","Ni","Pb","Zn")]
+x <- x[complete.cases(x), ]
+psych::fa(x, nfactors=3, rotate="varimax", fm="minres")
+```
+
+```{r}
+#| output: false
+#| message: false
+#| error: false
+if (length(tar_outdated()) > 0) {
+  tar_make()
+}
+tar_load(a_jura_fa)
+```
+
+```{r}
+#| eval: false
+#| fig.width: 4
+#| fig.height: 4
+#| label: fig-hclust
+#| fig-cap: "Graph of major factor loadings for the Jura data."
+
+par(oma=c(0,0,0,0), xpd=NA)
+psych::fa.diagram(a_jura_fa, marg=c(0,1,1,0), digits=2, adj=1, rsize=0.1)
+```
+
+## Discrete
+
+```{targets a_jura_mclust}
+#| label: a_jura_mclust
+#| tar_simple: true
+#| tar_interactive: false
+#| output: false
+
+set.seed(2022)
+x <- a_jura[,c("Cd","Co","Cr","Cu","Ni","Pb","Zn")]
+x <- x[complete.cases(x), ]
+Mclust(scale(x), G=4)
+```
+
+```{r}
+#| output: false
+#| message: false
+#| error: false
+if (length(tar_outdated()) > 0) {
+  tar_make()
+}
+tar_load(a_jura_mclust)
+```
+
+```{r}
+#| eval: false
+#| fig.width: 8
+#| fig.height: 4
+#| label: fig-hclust
+#| fig-cap: "Boxplots of K-Medoids clustering of UMAP transformed geology assay data."
+
+flds <- c("Cd","Co","Cr","Cu","Ni","Pb","Zn")
+par(mfrow=c(2,4), mar=c(4.1,4.1,1,1))
+i <- as.numeric(row.names(a_jura_mclust$data))
+x <- a_jura[i, ]
+x$G_ <- a_jura_mclust$classification
+for (i in flds) {
+  boxplot(as.formula(paste(i, "~ G_")), data=x, horizontal=TRUE, outline=FALSE, las=2)
+}
+```
+
+```{r}
+#| eval: false
+#| fig.width: 6
+#| fig.height: 4
+#| label: fig-hclust
+#| fig-cap: "Boxplots of K-Medoids clustering of UMAP transformed geology assay data."
+
+i <- as.numeric(row.names(a_jura_mclust$data))
+x <- a_jura[i, ]
+x$G_ <- a_jura_mclust$classification
+
+par(mar=c(3,3,1,1))
+mosaicplot(table(x$G_, x$Rock), col=viridis::viridis(5),off=c(0,0), las=2,
+           main="", xlab="G_", ylab="Rock")
+```
+
+```{r}
+#| eval: false
+#| fig.width: 6
+#| fig.height: 4
+#| label: fig-hclust
+#| fig-cap: "Boxplots of K-Medoids clustering of UMAP transformed geology assay data."
+
+i <- as.numeric(row.names(a_jura_mclust$data))
+x <- a_jura[i, ]
+x$G_ <- a_jura_mclust$classification
+
+par(mar=c(3,3,1,1))
+mosaicplot(table(x$G_, x$Landuse), col=viridis::viridis(4),off=c(0,0), las=2,
+           main="", xlab="G_", ylab="Landuse")
+```
+
+Clustering was applied to UMAP transformed geology drill hole assay data (Figure \@ref(fig:miss-vars6)). The transformed data was binned into 13 discrete groups. Each group shows distinct geochemistry for aluminium, iron, lead, total carbon, magnesium, total sulfur, calcium, manganese, and zinc (variables used for UMAP dimension reduction).
+
+Gaussian Mixture models were applied to groups of numeric variables. The number of factors were determined from factor analysis (number of factors + 1)
+
+```{r}
+#| eval: false
+#| fig.width: 4
+#| fig.height: 4
+#| label: fig-hclust
+#| fig-cap: "K-Medoids clustering of UMAP transformed assay data."
+
+set.seed(2022)
+
+k = 8
+
+x <- a_jura_umap$layout
+m <- cluster::pam(x, k=k, metric="euclidean", stand=FALSE)
+m_grps <- m$clustering
+m_ctrs <- m$medoids
+
+#m <- kmeans(x, centers=k)
+#m_grps <- m$cluster
+#m_ctrs <- m$centers
+
+#m <- cluster::clara(x, k=k, metric="euclidean", stand=FALSE, samples=50)
+#m_grps <- m$cluster
+#m_ctrs <- m$medoids
+
+#m <- e1071::cmeans(as.matrix(x), centers=k, dist="euclidean", method="cmeans")
+#m_grps <- m$cluster
+#m_ctrs <- m$centers
+
+#m <- ClusterR::GMM(x, k, "eucl_dist", "random_subset", 10, 10)
+#m_grps <- apply(m$Log_likelihood, 1, which.max)
+#m_ctrs <- m$centroids
+
+#m <- meanShiftR::meanShift(as.matrix(x), iterations=30, epsilon=1e-03, epsilonCluster=0.01)
+#m_grps <- m$assignment
+#m_ctrs <- NULL
+
+#m <- apcluster::apcluster(apcluster::negDistMat(r=2), x, q=0.01)
+#m_grps <- apcluster::labels(m, "enum")
+#m_ctrs <- m_umap_b$layout[m@exemplars, ]
+
+#m <- apcluster::apclusterK(apcluster::negDistMat(r=2), x, K=k)
+#m_grps <- apcluster::labels(m, "enum")
+#m_ctrs <- m_umap_b$layout[m@exemplars, ]
+
+#m <- dbscan::dbscan(x, eps=0.3, minPts=15)
+#m_grps <- m$cluster
+#m_ctrs <- NULL
+
+x <- as.data.frame(a_jura_umap$layout)
+names(x) <- c("x_umap", "y_umap")
+x$grps <- m_grps
+
+y <- as.data.frame(m_ctrs)
+names(y) <- c("x_umap", "y_umap")
+
+ggplot(data=x, mapping=aes_string(x="x_umap", y="y_umap")) +
+  geom_point(shape=15, size=2, mapping=aes(color=grps), show.legend=FALSE) +
+  ggforce::geom_voronoi_segment(data=y, color="black", show.legend=FALSE) +
+  scale_color_gradientn(colors=rev(viridis::viridis(12))) +
+  labs(x=NULL, y=NULL) +
+  scale_x_continuous(breaks = NULL) +
+  scale_y_continuous(breaks = NULL) +
+  theme_tufte()+
+  theme(legend.key.size = unit(3, 'mm'))
+```
+
+```{r}
+#| eval: false
+#| fig.width: 8
+#| fig.height: 4
+#| label: fig-hclust
+#| fig-cap: "Boxplots of K-Medoids clustering of UMAP transformed geology assay data."
+
+par(mfrow=c(2,4), mar=c(5.1,4.1,1.1,1.1))
+flds <- c("Cd","Co","Cr","Cu","Ni","Pb","Zn")
+u <- a_jura[, flds]
+for (i in flds) {
+  x <- u[[i]]
+  y <- m$cluster
+  boxplot(x ~ y, xlab=i, ylab="G_", horizontal=FALSE, las=2)
+}
+```

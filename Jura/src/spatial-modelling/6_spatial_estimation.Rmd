@@ -1,0 +1,137 @@
+---
+format: html-eval-false
+---
+
+# Spatial estimation
+
+The geology lithology raster model constructed using indicator kriging was used as the base model for grade estimation. Inverse distance weighting (power of 2) and simple kriging were used to estimate grades into the geological raster grid model. The 20 m by 20 m point estimates were aggregated to a raster with cell dimensions of 60 m by 60 m. This replicates a 3 by 3 (9) point discretization of a 60 m by 60 m panel.
+
+```{r}
+M__ROCK <- cache_data("./data/M/M__jura_rock.rds", function() {
+  flds <- names(M__IND)
+  #x <- raster::aggregate(M__IND, fact=3)
+  x <- M__IND
+  x <- which.max(x)
+  x <- ratify(x)
+  levels(x) <- list(data.frame(ID=1:length(flds), rock=flds))
+
+  return(x)
+}, out.csv=FALSE)
+```
+
+```{r ind-rock, fig.width=4, fig.height=4, fig.cap="Lithology map derived from the indicator kriging results."}
+z <- factor(values(M__ROCK))
+x <- data.frame(rock=z, coordinates(M__ROCK))
+flds <- levels(M__ROCK)[[1]]$rock
+
+ggplot() +
+  geom_raster(data=x, aes(x=x, y=y, fill=rock), alpha=1) +
+  scale_fill_viridis(na.value="white", option="magma",
+                     discrete=TRUE, labels=flds) +
+  xlab("UTM X (km)") + ylab("UTM Y (km)") +
+  coord_equal() +
+  theme_tufte() +
+  theme(
+    legend.position="right",
+    legend.key.width = unit(3, "mm"),
+    legend.key.height = unit(3, "mm"),
+    legend.text = element_text(size=8)
+  )
+rm(x, z, flds)
+```
+
+Simple kriging was selected for spatial estimation, rather than ordinary kriging, as the projection pursuit multivariate transform (PPMT) was used to transform the variables into a multi-gaussian. Each of the transformed variables has a mean of zero and a standard deviation of 0. This is consistent with using sequential gaussian simulation using PPMT transformed variables.
+
+The processed (top cuts applied, missing values imputed, historic samples declustered) and transformed (normal score for abundance and PPMT for grades) data was used for estimating grades. A minimum of 1 and a maximum of 10 samples were used in informing the estimates.
+
+```{r}
+M__IDW <- cache_data("./data/M/M__jura_idw.rds", function() {
+  df <- C__AH$Y
+  z <- sapply(flds_est, function(i) {
+    x <- df[, c("X","Y",i)]
+    x <- x[complete.cases(x), ]
+    z <- as.data.frame(coordinates(M__ROCK))
+    names(z) <- c("X","Y")
+
+    y <- idw(as.formula(paste(i, " ~ 1")), ~ X + Y, data=x, newdata=z,
+             idp=2, maxdist=6, nmin=1, nmax=10, omax=5)
+    y$var1.pred
+  })
+  z <- as.data.frame(z)
+  z <- as.data.frame(ppmt_inv(z, C__AH))
+  names(z) <- flds_est
+  z <- SpatialPixelsDataFrame(coordinates(M__ROCK), z)
+  z <- brick(z)
+
+  # Aggregate to parent cell.
+  x <- raster::aggregate(z, fact=3)
+
+  # Add back to sub-cell.
+  x <- raster::extract(x, coordinates(M__ROCK))
+  x <- as.data.frame(x)
+  x <- SpatialPixelsDataFrame(coordinates(M__ROCK), x)
+  x <- brick(x)
+  x <- mask(x, M__ROCK)
+  x$rock <- M__ROCK
+
+  return(x)
+}, out.csv=FALSE)
+```
+
+```{r}
+M__SK <- cache_data("./data/M/M__jura_sk.rds", function() {
+  df <- C__AH$Y
+  z <- sapply(flds_est, function(i) {
+    x <- df[, c("X","Y",i)]
+    x <- x[complete.cases(x), ]
+    coordinates(x) <- ~ X + Y
+    z <- as.data.frame(coordinates(M__ROCK))
+    names(z) <- c("X","Y")
+    coordinates(z) <- ~ X + Y
+
+    y <- krige(as.formula(paste(i, " ~ 1")), x, z, beta=0,
+               model=vario[[i]], maxdist=6, nmin=1, nmax=10, omax=5)
+    y$var1.pred
+  })
+  z <- as.data.frame(z)
+  z <- as.data.frame(ppmt_inv(z, C__AH))
+  names(z) <- flds_est
+  z <- SpatialPixelsDataFrame(coordinates(M__ROCK), z)
+  z <- brick(z)
+
+  # Aggregate to parent cell.
+  x <- raster::aggregate(z, fact=3)
+
+  # Add back to sub-cell.
+  x <- raster::extract(x, coordinates(M__ROCK))
+  x <- as.data.frame(x)
+  x <- SpatialPixelsDataFrame(coordinates(M__ROCK), x)
+  x <- brick(x)
+  x <- mask(x, M__ROCK)
+  x$rock <- M__ROCK
+
+  return(x)
+}, out.csv=FALSE)
+```
+
+Comparison of the inverse distance (IDW) and simple kriging estimates with sample data are illustrated in Figure \@ref(fig:comp-est). The cumulative probability plots show that the simple kriging panel estimates are similar to the inverse distance panel estimates. Both estimates are smoother than the samples.
+
+```{r comp-est, fig.width=7, fig.height=7, fig.cap="Log-probability plots comparing sample data with the IDW and SK estimates."}
+par(mfrow=c(3,3))
+
+for (i in flds_est) {
+  xlim <- range(values(M__SK[[i]]),
+                values(M__IDW[[i]]), B__AH[[i]], na.rm=TRUE)
+  cumprob(values(M__SK[[i]]), pch=16, cex=0.5, col="red",
+          main="", xlab=i, xlim=xlim)
+  cumprob(values(M__IDW[[i]]), pch=16, cex=0.5, col="blue",
+          main="", xlab=i, , xlim=xlim, add=TRUE)
+  cumprob(B__AH[[i]], pch=16, cex=0.5, col="black",
+          main="", xlab=i, xlim=xlim, add=TRUE)
+}
+plot(0, 0, xlim=c(0,1), ylim=c(0,1), axes=FALSE, xlab="", ylab="", type="n")
+legend("topleft", legend=c("Samples","IDW","SK"),
+       col=c("black","blue","red"), pch=16, bty="n")
+
+rm(i, xlim)
+```
