@@ -1,7 +1,0 @@
-project:
-  execute-dir: project
-  output-dir: docs
-  render:
-    - jura-exploratory-modelling.qmd
-
-editor: source
